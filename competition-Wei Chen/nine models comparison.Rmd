@@ -51,9 +51,8 @@ View(competition_validation)
 ```
 
 
-##### *1. Yield*
+##### *1. outcome*
 
-##### *- Weight of Final product *                              
 
 ##### *- data type: numeric ; units:x*                                                        
 
