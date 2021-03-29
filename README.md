@@ -1,2 +1,2 @@
-# 2064-Data-Science-cometition
+# 2064-Data-Science-competition
 This repo is for competition section in 2064 course- Wei Chen , Sifeng Liang
