@@ -319,3 +319,31 @@ paste("RMSE in MARS =",min(marsFit$results$RMSE)," ,test error = ",RMSE(predict(
 paste("RMSE in KNN =",min(knnFit1$results$RMSE)," ,test error = ",RMSE(predict(lassoTune, testxnnet), test$outcome))
 
 ```
+
+
+##### **choosed Random forest model as the predictive model in this dataset.**
+
+```{r}
+competition_predictors <- read.csv("competition-test-x-values.csv")
+#read predictors
+
+preprocessing_fit3 <- preProcess(
+competition_predictors,
+method = c("BoxCox" ,"center", "scale"))
+preprocessing_fit3
+#transformed the predictors
+
+transformed_predictors <- predict(
+preprocessing_fit3, competition_predictors)
+
+outcome_value<- as.integer(predict(rfTune, transformed_predictors))
+df <- data.frame(outcome_value)
+write.csv(df, 'competition-test-outcome.csv')
+
+
+
+
+
+
+
+```
