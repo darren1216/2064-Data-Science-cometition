@@ -1,0 +1,325 @@
+---
+title: "competition"
+author: "Wei Chen"
+date: "2021/3/29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+library(plyr)
+library(readr)
+library(caret)
+library(ggplot2)
+library(repr)
+library(glmnet)
+library(tidyverse)
+library(modelr) 
+options(na.action = na.warn) # turn on warnings for missing values
+library(dplyr)
+library(earth)
+
+```
+
+
+**Q1: Identify a data set from Applied Predictive Models (APM) Chapter 1.4.**
+
+##### *Dataset: Grant Applicants*
+
+**Q2: Identify a variable that you will attempt to predict using regression.**
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+# Descriptive statistics function
+descriptive_sta = function(x){
+  if (class(x) != "numeric"){cat("It is not a numeric data")}else{
+  mean = mean(x,na.rm = T)
+  median = median(x,na.rm = T)
+  quantile = quantile(x,na.rm = T)
+  range = range(x,na.rm = T)
+  result = list(mean = mean,
+                median=median,
+                quantile=quantile,
+                range= range )
+  
+  return(result)
+  }
+}
+competition_train <- read.csv("competition-train.csv")
+View(competition_train)
+
+competition_validation <- read.csv("competition-validation.csv")
+View(competition_validation)
+```
+
+
+##### *1. Yield*
+
+##### *- Weight of Final product *                              
+
+##### *- data type: numeric ; units:x*                                                        
+
+**- summary statistics:**
+
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+library(ggplot2)
+descriptive_sta(competition_train$outcome)
+ggplot(competition_train, aes(x = outcome ))+
+  geom_histogram(bins = 30,na.rm = T)+
+  labs(x = "outcome")
+
+```
+
+
+
+**Q3.Appropriately preprocess the data**
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+
+total_nan <- function(x) sum(is.na(x))
+competition_train %>% summarise(across(everything(), total_nan))
+total_nan2 <- function(x) sum(is.na(x))
+competition_validation %>% summarise(across(everything(), total_nan))
+
+
+df_predictors_only <- competition_train %>%
+  select(-outcome)
+preprocessing_fit <- preProcess(
+df_predictors_only,
+method = c("BoxCox" ,"center", "scale"))
+preprocessing_fit
+
+df_predictors_only2 <- competition_validation %>%
+  select(-outcome)
+preprocessing_fit2 <- preProcess(
+df_predictors_only2,
+method = c("BoxCox" ,"center", "scale"))
+preprocessing_fit2
+
+
+transformed_predictors_train <- predict(
+preprocessing_fit, df_predictors_only)
+
+transformed_predictors_validation <- predict(
+preprocessing_fit2, df_predictors_only2)
+
+preprocessed_train <- add_column(transformed_predictors_train,
+outcome = competition_train$outcome)
+
+preprocessed_validation <- add_column(transformed_predictors_validation,
+outcome = competition_validation$outcome)
+  
+head(preprocessed_train)
+head(preprocessed_validation)
+
+
+
+```
+**Q4.Use 10 fold cross validation to fit a model from each of the following categories:**
+
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+
+set.seed(1) 
+
+#index = sample(1:nrow(preprocessed_train), 0.7*nrow(preprocessed_train)) 
+
+train = preprocessed_train # Create the training data 
+test = preprocessed_validation # Create the test data
+
+dim(train)
+dim(test)
+
+train_predictor <- train%>%
+  select(-outcome)
+#train_outcome <- log(preprocessed_train$outcome)
+
+test_predictor <- test%>%
+  select(-outcome)
+#test_outcome <- log(preprocessed_validation$outcome)
+
+
+tooHigh <- findCorrelation(cor(train_predictor), cutoff = .9)
+length(tooHigh)
+trainXnnet <- train_predictor[, -tooHigh]
+  
+testxnnet <- test_predictor[, -tooHigh]
+
+
+
+```
+
+**i. Linear models**
+
+#####  *1.Linear regression*
+```{r echo=FALSE , message=FALSE, warning=FALSE}
+#Chem_predictor <- data.frame(train %>% select(BiologicalMaterial02))
+  ctrl = trainControl(
+    method="cv", number = 10)
+  lm_fit <- train(x = trainXnnet,
+                  y = train$outcome,
+                  method="lm", 
+                  trControl=ctrl
+            )
+lm_fit$results
+```
+#####  *2.Lasso*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+
+set.seed(1)
+lassoGrid <- expand.grid(lambda = c(0),
+fraction = seq(.1, 1, length = 15))
+lassoTune <- train(x = trainXnnet, y = train$outcome,
+method = "enet",
+tuneGrid = lassoGrid,
+trControl = ctrl
+)
+
+plot(lassoTune)
+lassoTune$bestTune
+lassoTune$results
+
+
+```
+#####  *3.Ridge regression*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+set.seed(1)
+ridgeGrid <- expand.grid(lambda = seq(0, .1, length = 10))
+ridgeTune <- train(x = trainXnnet, y = train$outcome,
+method = "ridge",
+tuneGrid = ridgeGrid,
+trControl = ctrl
+)
+
+ridgeTune$results
+plot(ridgeTune)
+ridgeTune$bestTune
+
+
+```
+
+**ii. Trees**
+
+##### *1. Regression tree*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+library(partykit)
+set.seed(1)
+cartTune <- train(x = trainXnnet, y = train$outcome,
+method = "rpart",
+tuneLength = 15,
+trControl = ctrl)
+cartTune
+ggplot(cartTune)
+cartTune$finalModel
+cartTuneSimple <- update(cartTune, param = list(cp = 0.05))
+cartTuneSimple$finalModel
+rpartTreeSimple <- as.party(cartTuneSimple$finalModel)
+plot(rpartTreeSimple)
+cartTune$results
+
+
+
+```
+
+
+##### *2. Random forests*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+mtryGrid <- data.frame(
+mtry = floor(seq(10, ncol(trainXnnet),
+length = 10))
+)
+
+set.seed(1)
+rfTune <- train(x = trainXnnet, y = train$outcome,
+method = "rf",
+tuneGrid = mtryGrid,
+ntree = 50,
+importance = TRUE,
+trControl = ctrl)
+
+rfTune
+plot(rfTune)
+rfTune$results
+```
+
+**iv. Non-linear models**
+
+##### *1.Support Vector Machines (SVM)*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+svmLinearTuned <- train(
+trainXnnet, train$outcome,
+method = "svmLinear",
+tuneLength = 8,
+epsilon = 0.01,
+trControl = ctrl
+)
+
+min(svmLinearTuned$result$RMSE)
+svmLinearTuned$bestTune
+
+```
+##### *2. Neural Nets*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+
+set.seed(1)
+nnetGrid <- expand.grid(
+decay = c(0), 
+size = c(3) 
+)
+nnetTune <- train(trainXnnet, train$outcome,
+method = "nnet",
+tuneGrid = nnetGrid,
+trControl = ctrl,
+linout = TRUE, 
+trace = FALSE
+)
+RMSE(predict(nnetTune, trainXnnet), train$outcome)
+
+nnetTune$results
+
+
+
+```
+##### *3. Multivariate Adaptive Regression Splines (MARS)*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+marsGrid <- expand.grid(.degree = 1:2, .nprune = c(20, 30, 40, 50))
+marsFit <- train(trainXnnet, train$outcome,
+method = "earth",
+tuneGrid = marsGrid,
+trControl = ctrl
+)
+
+
+min(marsFit$results$RMSE)
+marsFit$bestTune
+summary(marsFit) %>% .$coefficients %>% head(10)
+```
+
+#####  *4. K-nearest Neighbors (KNN)*
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+knnFit1 <- train(x = trainXnnet,
+y = train$outcome,
+method="knn",
+trControl=ctrl,
+tuneLength=15
+)
+knnFit1$results
+knnFit1$bestTune
+plot(knnFit1)
+min(knnFit1$results$RMSE)
+```
+
+**Q5. Compare each of the models in terms of there cross-validated RMSE and complexity**
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+
+
+paste("RMSE in linear model =",min(lm_fit$results$RMSE),", test error = ", RMSE(predict(lm_fit, testxnnet), test$outcome))
+paste("RMSE in Lasso =",min(lassoTune$results$RMSE)," ,test error = ",RMSE(predict(lassoTune, testxnnet), test$outcome))
+paste("RMSE in Ridge regression =",min(ridgeTune$results$RMSE)," ,test error = ",RMSE(predict(ridgeTune, testxnnet), test$outcome))
+paste("RMSE in regression tree =",min(cartTune$results$RMSE)," ,test error = ",RMSE(predict(cartTune, testxnnet), test$outcome))
+paste("RMSE in RF =",min(rfTune$results$RMSE)," ,test error = ",RMSE(predict(rfTune, testxnnet), test$outcome))
+paste("RMSE in SVM =",min(svmLinearTuned$result$RMSE)," ,test error = ",RMSE(predict(svmLinearTuned, testxnnet), test$outcome))
+paste("RMSE in Neural net =",min(nnetTune$results$RMSE)," ,test error = ",RMSE(predict(nnetTune, testxnnet), test$outcome))
+paste("RMSE in MARS =",min(marsFit$results$RMSE)," ,test error = ",RMSE(predict(marsFit, testxnnet), test$outcome))
+paste("RMSE in KNN =",min(knnFit1$results$RMSE)," ,test error = ",RMSE(predict(lassoTune, testxnnet), test$outcome))
+
+```
