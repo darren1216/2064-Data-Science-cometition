@@ -25,9 +25,6 @@ library(earth)
 ```
 
 
-**Q1: Identify a data set from Applied Predictive Models (APM) Chapter 1.4.**
-
-##### *Dataset: Grant Applicants*
 
 **Q2: Identify a variable that you will attempt to predict using regression.**
 ```{r echo=FALSE , message=FALSE ,warning=FALSE}
