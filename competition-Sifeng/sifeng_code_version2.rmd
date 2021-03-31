@@ -79,7 +79,7 @@ testing <- train[(length(training[, 1]) + 1):22,]
 
 ```{r}
 # model 1: Linear Regression
-model_1 <- lm(formula = outcome~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10, data = training)
+model_1 <- lm(formula = outcome~ ., data = training)
 summary(model_1)
 prediction_1 <- predict(model_1, newdata = testing)
 RMSE(testing$outcome, prediction_1)

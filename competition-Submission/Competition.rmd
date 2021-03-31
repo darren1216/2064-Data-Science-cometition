@@ -1,0 +1,183 @@
+---
+title: "IE 2064 Course Competition"
+author: "Wei Chen & Sifeng Liang"
+date: "2021/3/31"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load packages
+
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+library(plyr)
+library(readr)
+library(caret)
+library(ggplot2)
+library(repr)
+library(glmnet)
+library(tidyverse)
+library(modelr) 
+options(na.action = na.warn) # turn on warnings for missing values
+library(dplyr)
+library(earth)
+```
+
+# Descriptive statistics
+
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+# Descriptive statistics function
+descriptive_sta = function(x){
+  if (class(x) != "numeric"){cat("It is not a numeric data")}else{
+  mean = mean(x,na.rm = T)
+  median = median(x,na.rm = T)
+  quantile = quantile(x,na.rm = T)
+  range = range(x,na.rm = T)
+  result = list(mean = mean,
+                median=median,
+                quantile=quantile,
+                range= range )
+  
+  return(result)
+  }
+}
+
+# read the train set
+competition_train <- read.csv('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-train.csv')
+
+# read the validation set
+competition_validation <- read.csv('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-validation.csv')
+```
+
+
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+# histogram
+library(ggplot2)
+descriptive_sta(competition_train$outcome)
+ggplot(competition_train, aes(x = outcome ))+
+  geom_histogram(bins = 30,na.rm = T)+
+  labs(x = "outcome")
+
+# density plot
+ggplot(competition_train, aes(x = outcome)) + geom_density()
+ggplot(competition_validation, aes(x = outcome)) + geom_density()
+
+# descriptive statistics of train set
+mean(competition_train[["outcome"]])
+median(competition_train[["outcome"]])
+quantile(competition_train[["outcome"]])
+range(competition_train[["outcome"]])
+
+# descriptive statistics of validation set
+mean(competition_validation[["outcome"]])
+median(competition_validation[["outcome"]])
+quantile(competition_validation[["outcome"]])
+range(competition_validation[["outcome"]])
+```
+
+# Preprocess the data
+
+```{r}
+# identify and remove outliers in train set
+
+boxplot(competition_train$outcome) # identify outliers in "outcome"
+competition_train_removed <- filter(competition_train, outcome > 70)
+boxplot(competition_train_removed$outcome) # outliers were removed
+```
+
+```{r}
+# identify and remove outliers in validation set
+boxplot(competition_validation$outcome) # identify outliers in "outcome"
+competition_validation_removed <- filter(competition_validation, outcome > 65)
+boxplot(competition_validation_removed$outcome) # outliers were removed
+```
+
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+total_nan <- function(x) sum(is.na(x))
+competition_train_removed %>% summarise(across(everything(), total_nan))
+total_nan2 <- function(x) sum(is.na(x))
+competition_validation_removed %>% summarise(across(everything(), total_nan))
+df_predictors_only <- competition_train_removed %>%
+  select(-outcome)
+preprocessing_fit <- preProcess(
+df_predictors_only,
+method = c("BoxCox" ,"center", "scale"))
+preprocessing_fit
+df_predictors_only2 <- competition_validation_removed %>%
+  select(-outcome)
+preprocessing_fit2 <- preProcess(
+df_predictors_only2,
+method = c("BoxCox" ,"center", "scale"))
+preprocessing_fit2
+transformed_predictors_train <- predict(
+preprocessing_fit, df_predictors_only)
+transformed_predictors_validation <- predict(
+preprocessing_fit2, df_predictors_only2)
+preprocessed_train <- add_column(transformed_predictors_train,
+outcome = competition_train_removed$outcome)
+preprocessed_validation <- add_column(transformed_predictors_validation,
+outcome = competition_validation_removed$outcome)
+  
+head(preprocessed_train)
+head(preprocessed_validation)
+```
+
+# Use 10-fold cross validation to fit a model
+
+```{r echo=FALSE , message=FALSE ,warning=FALSE}
+set.seed(1) 
+#index = sample(1:nrow(preprocessed_train), 0.7*nrow(preprocessed_train)) 
+train = preprocessed_train # Create the training data 
+test = preprocessed_validation # Create the test data
+dim(train)
+dim(test)
+train_predictor <- train%>%
+  select(-outcome)
+#train_outcome <- log(preprocessed_train$outcome)
+test_predictor <- test%>%
+  select(-outcome)
+#test_outcome <- log(preprocessed_validation$outcome)
+tooHigh <- findCorrelation(cor(train_predictor), cutoff = .9)
+length(tooHigh)
+trainXnnet <- train_predictor[, -tooHigh]
+testxnnet <- test_predictor[, -tooHigh]
+```
+
+# Random Forests model
++ After comparing performance of each model we used, the team decided to keep Random Forests model to predict the test set outcome.
+
+```{r echo=FALSE , message=FALSE , warning=FALSE}
+mtryGrid <- data.frame(
+mtry = floor(seq(10, ncol(trainXnnet),
+length = 10))
+)
+set.seed(1)
+rfTune <- train(x = trainXnnet, y = train$outcome,
+method = "rf",
+tuneGrid = mtryGrid,
+ntree = 50,
+importance = TRUE,
+trControl = ctrl)
+rfTune
+plot(rfTune)
+rfTune$results
+```
+
+# Create the submission csv file for outcome
+
+```{r}
+competition_predictors <- read.csv('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-test-x-values.csv')
+#read predictors
+preprocessing_fit3 <- preProcess(
+competition_predictors,
+method = c("BoxCox" ,"center", "scale"))
+preprocessing_fit3
+#transformed the predictors
+transformed_predictors <- predict(
+preprocessing_fit3, competition_predictors)
+outcome_value<- as.integer(predict(rfTune, transformed_predictors))
+df <- data.frame(outcome_value)
+write.csv(df, 'competition-test-outcome.csv')
+```
