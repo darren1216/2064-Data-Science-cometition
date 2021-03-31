@@ -1,0 +1,91 @@
+---
+title: "competition"
+author: "Sifeng Liang"
+date: "2021/3/29"
+output: pdf_document
+---
+
+```{r}
+# load packages
+library(MASS)
+library(Metrics)
+library(corrplot)
+library(randomForest)
+library(lars)
+library(ggplot2)
+library(xgboost)
+library(Matrix)
+library(methods)
+library(caret)
+```
+
+```{r}
+# read data
+# read the train set
+train <- fread('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-train.csv', stringsAsFactors=F, nrows=N_read)
+
+# read the test set
+test <- fread('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-test-x-values.csv', stringsAsFactors=F, nrows=N_read)
+
+# read the validation set
+validation <- fread('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-validation.csv', stringsAsFactors=F, nrows=N_read)
+```
+
+# Data Cleaning
+
+
+# Desciptive Analysis
+```{r}
+# correlation plot
+correlations <- cor(train)
+corrplot(correlations, order = "hclust")
+
+# pairs plot
+pairs(~outcome + X1 + X2 + X3 + X4 + X5, data = train)
+pairs(~outcome + X6 + X7 + X8 + X9 + X10, data = train)
+pairs(~outcome + X11 + X12 + X13 + X14 + X15, data = train)
+pairs(~outcome + X16 + X17 + X18 + X19 + X20 + X21, data = train)
+
+# The dependent variable ("outcome") looks having decent linearity when plotting with other variables.  However, it is also obvious that some independent variables also have linear relationships with others.  The problem is multicollineaerity is obvious.
+
+# The final descriptive analysis I used would be the relationship between "X21" and "outcome".
+```
+
+```{r}
+p <- ggplot(train, aes(x = X21, y = outcome)) + geom_point() + geom_smooth()
+p
+```
+
+# Model Selection
+```{r}
+# split into train and test sets
+training <- train[1:floor(length(train[, 1]) * 0.8),]
+testing <- train[(length(training[, 1]) + 1):22,]
+```
+
+```{r}
+# model 1: Linear Regression
+model_1 <- lm(outcome~., data = training)
+summary(model_1)
+prediction_1 <- predict(model_1, newdata = testing)
+RMSE(predict(model_1))
+```
+
+```{r}
+# model 2: LASSO
+independent_variable <- as.matrix(train[, 1:21])
+dependent_variable <- as.matrix(train[, 22])
+model_2 <- lars(independent_variable, dependent_variable, type = 'lasso')
+plot(model_2)
+
+best_step <- model_2$df[which.min(model_2$Cp)]
+prediction_2 <- predict.lars(model_2, newx = as.matrix(testing[, 1:21]), s = best_step, type = "fit")
+rmse(log(testing$outcome), log(prediction_2$fit))
+```
+
+```{r}
+# model 3: Random Forest
+model_3 <- randomForest(outcome~., data = training)
+prediction_3 <- predict(model_3, newdata = testing)
+rmse(log(testing$outcome), log(prediction_3))
+```
