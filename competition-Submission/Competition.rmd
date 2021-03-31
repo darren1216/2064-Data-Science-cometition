@@ -82,16 +82,16 @@ range(competition_validation[["outcome"]])
 ```{r}
 # identify and remove outliers in train set
 
-boxplot(competition_train$outcome) # identify outliers in "outcome"
-competition_train_removed <- filter(competition_train, outcome > 45)
-boxplot(competition_train_removed$outcome) # outliers were removed
+boxplot(competition_train$X21) # identify outliers in "X21"
+competition_train_removed <- filter(competition_train, X21 > 39)
+boxplot(competition_train_removed$X21) # outliers were removed
 ```
 
 ```{r}
 # identify and remove outliers in validation set
-boxplot(competition_validation$outcome) # identify outliers in "outcome"
-competition_validation_removed <- filter(competition_validation, outcome > 49)
-boxplot(competition_validation_removed$outcome) # outliers were removed
+boxplot(competition_validation$X21) # identify outliers in "X21"
+competition_validation_removed <- filter(competition_validation, X21 > 24)
+boxplot(competition_validation_removed$X21) # outliers were removed
 ```
 
 ```{r echo=FALSE , message=FALSE ,warning=FALSE}
@@ -178,7 +178,15 @@ preprocessing_fit3
 #transformed the predictors
 transformed_predictors <- predict(
 preprocessing_fit3, competition_predictors)
+
+
 outcome <- as.integer(predict(rfTune, transformed_predictors))
-df <- data.frame(outcome)
+competition_predictors <-add_column(competition_predictors,Outcome = outcome)
+
+# select outliers in X21 and set the outcomes as zero
+ind <- which(competition_predictors$X21 <=45)
+competition_predictors[ind,]$Outcome = 0
+
+df <- data.frame(competition_predictors$Outcome)
 write.csv(df, 'competition-test-outcome.csv')
 ```
