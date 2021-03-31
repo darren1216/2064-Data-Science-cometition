@@ -45,10 +45,10 @@ descriptive_sta = function(x){
 }
 
 # read the train set
-competition_train <- read.csv('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-train.csv')
+competition_train <- read.csv('competition-train.csv')
 
 # read the validation set
-competition_validation <- read.csv('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-validation.csv')
+competition_validation <- read.csv('competition-validation.csv')
 ```
 
 
@@ -83,14 +83,14 @@ range(competition_validation[["outcome"]])
 # identify and remove outliers in train set
 
 boxplot(competition_train$outcome) # identify outliers in "outcome"
-competition_train_removed <- filter(competition_train, outcome > 70)
+competition_train_removed <- filter(competition_train, outcome > 45)
 boxplot(competition_train_removed$outcome) # outliers were removed
 ```
 
 ```{r}
 # identify and remove outliers in validation set
 boxplot(competition_validation$outcome) # identify outliers in "outcome"
-competition_validation_removed <- filter(competition_validation, outcome > 65)
+competition_validation_removed <- filter(competition_validation, outcome > 49)
 boxplot(competition_validation_removed$outcome) # outliers were removed
 ```
 
@@ -135,10 +135,11 @@ dim(train)
 dim(test)
 train_predictor <- train%>%
   select(-outcome)
-#train_outcome <- log(preprocessed_train$outcome)
+
 test_predictor <- test%>%
   select(-outcome)
-#test_outcome <- log(preprocessed_validation$outcome)
+
+#removed high correlation predictors
 tooHigh <- findCorrelation(cor(train_predictor), cutoff = .9)
 length(tooHigh)
 trainXnnet <- train_predictor[, -tooHigh]
@@ -168,7 +169,7 @@ rfTune$results
 # Create the submission csv file for outcome
 
 ```{r}
-competition_predictors <- read.csv('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Desktop\\Pitt\\2021 Spring\\IE-2064 DATA SCIENCE\\Competition\\Data\\competition-test-x-values.csv')
+competition_predictors <- read.csv('competition-test-x-values.csv')
 #read predictors
 preprocessing_fit3 <- preProcess(
 competition_predictors,
@@ -177,7 +178,7 @@ preprocessing_fit3
 #transformed the predictors
 transformed_predictors <- predict(
 preprocessing_fit3, competition_predictors)
-outcome_value<- as.integer(predict(rfTune, transformed_predictors))
-df <- data.frame(outcome_value)
+outcome <- as.integer(predict(rfTune, transformed_predictors))
+df <- data.frame(outcome)
 write.csv(df, 'competition-test-outcome.csv')
 ```
