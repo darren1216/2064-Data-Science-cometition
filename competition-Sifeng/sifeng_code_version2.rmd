@@ -32,7 +32,21 @@ validation <- fread('C:\\Users\\SIFENG\\OneDrive - University of Pittsburgh\\Des
 ```
 
 # Data Cleaning
+```{r}
+# have a look on the number of missing values in every variable
+Num_NA <- sapply(train, function(y)length(which(is.na(y)==T)))
+NA_count <- data.frame(Item = colnames(train), count = Num_NA)
+NA_count
 
+# sort numeric variables
+Num <- sapply(train, is.numeric)
+
+for(i in 1:22){
+  if(is.factor(train[, i])) {
+    train[, i] <- as.integer(train[, i])
+  }
+}
+```
 
 # Desciptive Analysis
 ```{r}
@@ -59,16 +73,16 @@ p
 # Model Selection
 ```{r}
 # split into train and test sets
-training <- train[1:floor(length(train[, 1]) * 0.8),]
+training <- train[22:floor(length(train[, 1]) * 0.8),]
 testing <- train[(length(training[, 1]) + 1):22,]
 ```
 
 ```{r}
 # model 1: Linear Regression
-model_1 <- lm(outcome~., data = training)
+model_1 <- lm(formula = outcome~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10, data = training)
 summary(model_1)
 prediction_1 <- predict(model_1, newdata = testing)
-RMSE(predict(model_1))
+RMSE(testing$outcome, prediction_1)
 ```
 
 ```{r}
@@ -80,12 +94,17 @@ plot(model_2)
 
 best_step <- model_2$df[which.min(model_2$Cp)]
 prediction_2 <- predict.lars(model_2, newx = as.matrix(testing[, 1:21]), s = best_step, type = "fit")
-rmse(log(testing$outcome), log(prediction_2$fit))
+rmse(testing$outcome, prediction_2$fit)
 ```
 
 ```{r}
 # model 3: Random Forest
 model_3 <- randomForest(outcome~., data = training)
 prediction_3 <- predict(model_3, newdata = testing)
-rmse(log(testing$outcome), log(prediction_3))
+rmse(testing$outcome, prediction_3)
+```
+
+```{r}
+# model 4: Ridge Regression
+model_4 <- ridgeRigFit()
 ```
