@@ -144,6 +144,8 @@ tooHigh <- findCorrelation(cor(train_predictor), cutoff = .9)
 length(tooHigh)
 trainXnnet <- train_predictor[, -tooHigh]
 testxnnet <- test_predictor[, -tooHigh]
+ctrl = trainControl(
+    method="cv", number = 10)
 ```
 
 # Random Forests model
